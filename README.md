@@ -12,7 +12,9 @@ subscribes to a `Twist` `cmd_vel` topic.
 - **D-pad** — hold ↑ ↓ ← → to drive, ■ to stop. Commands publish at 10 Hz while
   held; releasing sends a zero `Twist`.
 - **Keyboard control** — arrow keys drive and Space stops while the panel has
-  focus.
+  focus. Held directions **combine**: Up+Left arcs forward-and-left, while
+  opposite directions (Up+Down, Left+Right) cancel out. (Combining needs the
+  keyboard — a mouse can only hold one on-screen button at a time.)
 - **Configurable** — set the topic name and linear/angular speeds from the
   panel. Settings persist in the `.rviz` config.
 - **Twist or TwistStamped** — a **Stamped** checkbox (default on) selects the

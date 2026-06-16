@@ -35,17 +35,13 @@ protected:
 private Q_SLOTS:
   void onTopicChanged();
   void onStampedToggled(bool checked);
-  void onForwardPressed();
-  void onBackwardPressed();
-  void onLeftPressed();
-  void onRightPressed();
   void onStopPressed();
-  void onDirectionalReleased();
   void publishVelocity();
 
 private:
-  void startDriving(double linear, double angular);
-  void stopDriving();
+  enum Direction { Forward, Backward, Left, Right };
+  void setHeld(Direction dir, bool held);
+  void updateTwist();
   void recreatePublisher();
 
   QLineEdit * topic_edit_;
@@ -64,6 +60,7 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr stamped_publisher_;
 
+  bool held_[4] {false, false, false, false};  // indexed by Direction
   double current_linear_{0.0};
   double current_angular_{0.0};
   QString topic_name_{"/cmd_vel"};
