@@ -22,9 +22,16 @@ TeleopPanel::TeleopPanel(QWidget * parent)
 
   // ── Topic row ────────────────────────────────────────────────────────────
   topic_edit_ = new QLineEdit(topic_name_);
+  stamped_check_ = new QCheckBox("Stamped");
+  stamped_check_->setChecked(stamped_);  // default on (TwistStamped)
+  stamped_check_->setFocusPolicy(Qt::NoFocus);  // keep keyboard focus on the panel
+  stamped_check_->setToolTip(
+    "Publish geometry_msgs/TwistStamped (required by ros2_control diff_drive_controller "
+    "on Jazzy). Uncheck for plain geometry_msgs/Twist.");
   auto * topic_layout = new QHBoxLayout;
   topic_layout->addWidget(new QLabel("Topic:"));
   topic_layout->addWidget(topic_edit_);
+  topic_layout->addWidget(stamped_check_);
 
   // ── Speed row ────────────────────────────────────────────────────────────
   linear_speed_box_ = new QDoubleSpinBox;
@@ -108,6 +115,7 @@ TeleopPanel::TeleopPanel(QWidget * parent)
   connect(btn_right_,    &QPushButton::released, this, &TeleopPanel::onDirectionalReleased);
 
   connect(topic_edit_, &QLineEdit::editingFinished, this, &TeleopPanel::onTopicChanged);
+  connect(stamped_check_, &QCheckBox::toggled, this, &TeleopPanel::onStampedToggled);
 }
 
 TeleopPanel::~TeleopPanel() = default;
@@ -133,6 +141,11 @@ void TeleopPanel::load(const rviz_common::Config & config)
   if (config.mapGetFloat("AngularSpeed", &val)) {
     angular_speed_box_->setValue(val);
   }
+  bool stamped;
+  if (config.mapGetBool("Stamped", &stamped)) {
+    stamped_ = stamped;
+    stamped_check_->setChecked(stamped);
+  }
 }
 
 void TeleopPanel::save(rviz_common::Config config) const
@@ -141,6 +154,7 @@ void TeleopPanel::save(rviz_common::Config config) const
   config.mapSetValue("Topic", topic_name_);
   config.mapSetValue("LinearSpeed", static_cast<float>(linear_speed_box_->value()));
   config.mapSetValue("AngularSpeed", static_cast<float>(angular_speed_box_->value()));
+  config.mapSetValue("Stamped", stamped_check_->isChecked());
 }
 
 // ── Keyboard control ──────────────────────────────────────────────────────────
@@ -182,6 +196,12 @@ void TeleopPanel::onTopicChanged()
 {
   topic_name_ = topic_edit_->text();
   recreatePublisher();
+}
+
+void TeleopPanel::onStampedToggled(bool checked)
+{
+  stamped_ = checked;
+  recreatePublisher();  // message type changed, so swap the publisher
 }
 
 void TeleopPanel::onForwardPressed()
@@ -240,23 +260,48 @@ void TeleopPanel::stopDriving()
 
 void TeleopPanel::publishVelocity()
 {
-  if (!publisher_) {
-    return;
+  if (stamped_) {
+    if (!stamped_publisher_) {
+      return;
+    }
+    geometry_msgs::msg::TwistStamped msg;
+    msg.header.stamp     = node_->now();
+    msg.twist.linear.x   = current_linear_;
+    msg.twist.angular.z  = current_angular_;
+    stamped_publisher_->publish(msg);
+  } else {
+    if (!publisher_) {
+      return;
+    }
+    geometry_msgs::msg::Twist msg;
+    msg.linear.x  = current_linear_;
+    msg.angular.z = current_angular_;
+    publisher_->publish(msg);
   }
-  geometry_msgs::msg::Twist msg;
-  msg.linear.x  = current_linear_;
-  msg.angular.z = current_angular_;
-  publisher_->publish(msg);
 }
 
 void TeleopPanel::recreatePublisher()
 {
-  if (!getDisplayContext()) {
-    return;
+  if (!node_) {
+    if (!getDisplayContext()) {
+      return;
+    }
+    node_ = getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
   }
-  auto node = getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
-  publisher_ = node->create_publisher<geometry_msgs::msg::Twist>(
-    topic_name_.toStdString(), rclcpp::QoS(1));
+
+  // Only one publisher is live at a time; drop the other so we don't leave a
+  // stale endpoint of the wrong type on the topic.
+  publisher_.reset();
+  stamped_publisher_.reset();
+
+  const std::string topic = topic_name_.toStdString();
+  if (stamped_) {
+    stamped_publisher_ = node_->create_publisher<geometry_msgs::msg::TwistStamped>(
+      topic, rclcpp::QoS(1));
+  } else {
+    publisher_ = node_->create_publisher<geometry_msgs::msg::Twist>(
+      topic, rclcpp::QoS(1));
+  }
 }
 
 }  // namespace rviz_teleop_panel

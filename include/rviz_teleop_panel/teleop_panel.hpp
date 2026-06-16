@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCheckBox>
 #include <QDoubleSpinBox>
 #include <QLabel>
 #include <QLineEdit>
@@ -8,6 +9,7 @@
 #include <QWidget>
 
 #include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rviz_common/panel.hpp>
 
@@ -32,6 +34,7 @@ protected:
 
 private Q_SLOTS:
   void onTopicChanged();
+  void onStampedToggled(bool checked);
   void onForwardPressed();
   void onBackwardPressed();
   void onLeftPressed();
@@ -53,14 +56,18 @@ private:
   QPushButton * btn_left_;
   QPushButton * btn_right_;
   QPushButton * btn_stop_;
+  QCheckBox * stamped_check_;
   QLabel * status_label_;
 
   QTimer * publish_timer_;
+  rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr stamped_publisher_;
 
   double current_linear_{0.0};
   double current_angular_{0.0};
   QString topic_name_{"/cmd_vel"};
+  bool stamped_{true};  // default to TwistStamped (ros2_control / Jazzy)
 };
 
 }  // namespace rviz_teleop_panel

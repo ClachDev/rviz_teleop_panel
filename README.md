@@ -15,6 +15,10 @@ subscribes to a `Twist` `cmd_vel` topic.
   focus.
 - **Configurable** — set the topic name and linear/angular speeds from the
   panel. Settings persist in the `.rviz` config.
+- **Twist or TwistStamped** — a **Stamped** checkbox (default on) selects the
+  message type. `ros2_control`'s `diff_drive_controller` on Jazzy subscribes to
+  `geometry_msgs/TwistStamped`; uncheck it for robots that expect plain
+  `geometry_msgs/Twist`.
 
 ## Build
 
@@ -39,8 +43,21 @@ colcon build --packages-select rviz_teleop_panel
    the pixi activation script).
 2. Launch RViz2.
 3. **Panels → Add New Panel → rviz_teleop_panel → TeleopPanel**.
-4. Set the topic (default `cmd_vel`) and speeds, then drive with the buttons or
-   the arrow keys.
+4. Set the topic (default `/cmd_vel`) and speeds, leave **Stamped** ticked for a
+   `diff_drive_controller` robot (untick it for plain `Twist`), then drive with
+   the buttons or the arrow keys.
+
+### Driving mote
+
+Mote's `diff_drive_controller` (ROS 2 Jazzy) listens on
+`/diff_drive_controller/cmd_vel` as `TwistStamped`, so set:
+
+- **Topic:** `/diff_drive_controller/cmd_vel`
+- **Stamped:** ticked (the default)
+
+This repo's env already pins `rmw_cyclonedds_cpp` to match mote, and both use
+the default `ROS_DOMAIN_ID`, so the panel will discover the controller on the
+same network.
 
 ## License
 
