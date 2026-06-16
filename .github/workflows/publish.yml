@@ -1,0 +1,27 @@
+name: Publish
+
+# Publishes ros-jazzy-rviz-teleop-panel to the prefix.dev/mote channel using
+# OIDC trusted publishing — no stored API token. The trusted publisher
+# configured on the channel must reference this repository and this workflow
+# file name (publish.yml).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required: lets pixi exchange the GitHub OIDC token
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: latest
+          run-install: false   # `pixi publish` builds on its own; no dev env needed
+
+      # Builds the conda package from package.xml and uploads it via OIDC.
+      - run: pixi publish --target-channel https://prefix.dev/mote
