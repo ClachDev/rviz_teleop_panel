@@ -1,0 +1,11 @@
+<library path="rviz_teleop_panel">
+  <class name="rviz_teleop_panel/TeleopPanel"
+         type="rviz_teleop_panel::TeleopPanel"
+         base_class_type="rviz_common::Panel">
+    <description>
+      Teleop panel for publishing Twist commands to a cmd_vel topic.
+      Click or hold the arrow buttons to drive your robot. Arrow keys
+      and Space also work when the panel has keyboard focus.
+    </description>
+  </class>
+</library>

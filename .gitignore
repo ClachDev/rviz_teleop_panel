@@ -1,0 +1,11 @@
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+# colcon build artifacts
+build/
+install/
+log/
+
+# llm
+.claude/
