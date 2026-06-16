@@ -15,6 +15,9 @@ set(CMAKE_AUTOMOC ON)
 
 add_library(${PROJECT_NAME} SHARED
   src/teleop_panel.cpp
+  # Listed so CMAKE_AUTOMOC runs moc on the Q_OBJECT header (it lives under
+  # include/, not next to the .cpp, so AUTOMOC won't find it otherwise).
+  include/rviz_teleop_panel/teleop_panel.hpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
