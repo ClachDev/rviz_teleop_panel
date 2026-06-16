@@ -4,6 +4,17 @@ channels = ["robostack-jazzy", "conda-forge"]
 name = "rviz_teleop_panel"
 platforms = ["linux-64"]
 version = "0.1.0"
+preview = ["pixi-build"]
+
+# Build this package into a conda artifact (ros-jazzy-rviz-teleop-panel) via the
+# pixi-build-ros backend. Metadata and dependencies are read from package.xml.
+[package.build.backend]
+channels = ["https://prefix.dev/conda-forge"]
+name = "pixi-build-ros"
+version = "*"
+
+[package.build.config]
+distro = "jazzy"
 
 [tasks]
 build = "colcon build --symlink-install --cmake-args -G Ninja -DCMAKE_POLICY_VERSION_MINIMUM=3.5"

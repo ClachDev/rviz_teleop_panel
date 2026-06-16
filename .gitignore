@@ -7,5 +7,9 @@ build/
 install/
 log/
 
+# pixi build output
+dist/
+.pixi-build/
+
 # llm
 .claude/
