@@ -147,6 +147,10 @@ void TeleopPanel::load(const rviz_common::Config & config)
     stamped_ = stamped;
     stamped_check_->setChecked(stamped);
   }
+
+  // Rebuild the publisher so it matches the loaded topic/type. Safe if node_ is
+  // not ready yet: recreatePublisher() early-returns and onInitialize() builds it.
+  recreatePublisher();
 }
 
 void TeleopPanel::save(rviz_common::Config config) const
