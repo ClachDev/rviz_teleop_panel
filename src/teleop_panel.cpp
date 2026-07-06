@@ -103,16 +103,17 @@ TeleopPanel::TeleopPanel(QWidget * parent)
   connect(publish_timer_, &QTimer::timeout, this, &TeleopPanel::publishVelocity);
 
   // ── Button signals ───────────────────────────────────────────────────────
-  connect(btn_forward_,  &QPushButton::pressed,  this, &TeleopPanel::onForwardPressed);
-  connect(btn_backward_, &QPushButton::pressed,  this, &TeleopPanel::onBackwardPressed);
-  connect(btn_left_,     &QPushButton::pressed,  this, &TeleopPanel::onLeftPressed);
-  connect(btn_right_,    &QPushButton::pressed,  this, &TeleopPanel::onRightPressed);
-  connect(btn_stop_,     &QPushButton::clicked,  this, &TeleopPanel::onStopPressed);
-
-  connect(btn_forward_,  &QPushButton::released, this, &TeleopPanel::onDirectionalReleased);
-  connect(btn_backward_, &QPushButton::released, this, &TeleopPanel::onDirectionalReleased);
-  connect(btn_left_,     &QPushButton::released, this, &TeleopPanel::onDirectionalReleased);
-  connect(btn_right_,    &QPushButton::released, this, &TeleopPanel::onDirectionalReleased);
+  // Each directional button holds its direction while pressed and releases it
+  // on release, so multiple held directions combine (see updateTwist).
+  auto bind_dir = [this](QPushButton * b, Direction dir) {
+    connect(b, &QPushButton::pressed,  this, [this, dir] { setHeld(dir, true); });
+    connect(b, &QPushButton::released, this, [this, dir] { setHeld(dir, false); });
+  };
+  bind_dir(btn_forward_,  Forward);
+  bind_dir(btn_backward_, Backward);
+  bind_dir(btn_left_,     Left);
+  bind_dir(btn_right_,    Right);
+  connect(btn_stop_, &QPushButton::clicked, this, &TeleopPanel::onStopPressed);
 
   connect(topic_edit_, &QLineEdit::editingFinished, this, &TeleopPanel::onTopicChanged);
   connect(stamped_check_, &QCheckBox::toggled, this, &TeleopPanel::onStampedToggled);
@@ -146,6 +147,10 @@ void TeleopPanel::load(const rviz_common::Config & config)
     stamped_ = stamped;
     stamped_check_->setChecked(stamped);
   }
+
+  // Rebuild the publisher so it matches the loaded topic/type. Safe if node_ is
+  // not ready yet: recreatePublisher() early-returns and onInitialize() builds it.
+  recreatePublisher();
 }
 
 void TeleopPanel::save(rviz_common::Config config) const
@@ -165,11 +170,11 @@ void TeleopPanel::keyPressEvent(QKeyEvent * event)
     return;
   }
   switch (event->key()) {
-    case Qt::Key_Up:    onForwardPressed();  break;
-    case Qt::Key_Down:  onBackwardPressed(); break;
-    case Qt::Key_Left:  onLeftPressed();     break;
-    case Qt::Key_Right: onRightPressed();    break;
-    case Qt::Key_Space: onStopPressed();     break;
+    case Qt::Key_Up:    setHeld(Forward,  true); break;
+    case Qt::Key_Down:  setHeld(Backward, true); break;
+    case Qt::Key_Left:  setHeld(Left,     true); break;
+    case Qt::Key_Right: setHeld(Right,    true); break;
+    case Qt::Key_Space: onStopPressed();         break;
     default: rviz_common::Panel::keyPressEvent(event);
   }
 }
@@ -180,12 +185,10 @@ void TeleopPanel::keyReleaseEvent(QKeyEvent * event)
     return;
   }
   switch (event->key()) {
-    case Qt::Key_Up:
-    case Qt::Key_Down:
-    case Qt::Key_Left:
-    case Qt::Key_Right:
-      onDirectionalReleased();
-      break;
+    case Qt::Key_Up:    setHeld(Forward,  false); break;
+    case Qt::Key_Down:  setHeld(Backward, false); break;
+    case Qt::Key_Left:  setHeld(Left,     false); break;
+    case Qt::Key_Right: setHeld(Right,    false); break;
     default: rviz_common::Panel::keyReleaseEvent(event);
   }
 }
@@ -204,58 +207,50 @@ void TeleopPanel::onStampedToggled(bool checked)
   recreatePublisher();  // message type changed, so swap the publisher
 }
 
-void TeleopPanel::onForwardPressed()
-{
-  startDriving(linear_speed_box_->value(), 0.0);
-}
-
-void TeleopPanel::onBackwardPressed()
-{
-  startDriving(-linear_speed_box_->value(), 0.0);
-}
-
-void TeleopPanel::onLeftPressed()
-{
-  startDriving(0.0, angular_speed_box_->value());
-}
-
-void TeleopPanel::onRightPressed()
-{
-  startDriving(0.0, -angular_speed_box_->value());
-}
-
 void TeleopPanel::onStopPressed()
 {
-  stopDriving();
-}
-
-void TeleopPanel::onDirectionalReleased()
-{
-  stopDriving();
+  // Emergency stop: drop every held direction.
+  held_[Forward] = held_[Backward] = held_[Left] = held_[Right] = false;
+  updateTwist();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-void TeleopPanel::startDriving(double linear, double angular)
+void TeleopPanel::setHeld(Direction dir, bool held)
 {
-  current_linear_  = linear;
-  current_angular_ = angular;
-  publish_timer_->start();
-  publishVelocity();
-
-  status_label_->setText(
-    QString("linear: %1  angular: %2")
-      .arg(current_linear_,  0, 'f', 2)
-      .arg(current_angular_, 0, 'f', 2));
+  held_[dir] = held;
+  updateTwist();
 }
 
-void TeleopPanel::stopDriving()
+void TeleopPanel::updateTwist()
 {
-  publish_timer_->stop();
-  current_linear_  = 0.0;
-  current_angular_ = 0.0;
-  publishVelocity();
-  status_label_->setText("Stopped");
+  const double lin = linear_speed_box_->value();
+  const double ang = angular_speed_box_->value();
+
+  // Opposite directions cancel; perpendicular directions combine.
+  current_linear_  = (held_[Forward] ? lin : 0.0) - (held_[Backward] ? lin : 0.0);
+  current_angular_ = (held_[Left]    ? ang : 0.0) - (held_[Right]    ? ang : 0.0);
+
+  const bool any_held =
+    held_[Forward] || held_[Backward] || held_[Left] || held_[Right];
+
+  // Keep streaming at 10 Hz while anything is held; stop when all released.
+  if (any_held && !publish_timer_->isActive()) {
+    publish_timer_->start();
+  } else if (!any_held) {
+    publish_timer_->stop();
+  }
+
+  publishVelocity();  // push the new command (or a final zero) right away
+
+  if (any_held) {
+    status_label_->setText(
+      QString("linear: %1  angular: %2")
+        .arg(current_linear_,  0, 'f', 2)
+        .arg(current_angular_, 0, 'f', 2));
+  } else {
+    status_label_->setText("Stopped");
+  }
 }
 
 void TeleopPanel::publishVelocity()
